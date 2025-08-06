@@ -1,0 +1,25 @@
+# Gradle upgrade gaps - ./gradlew assembleDebug --warning-mode all --scan
+- Check :  The org.gradle.api.plugins.Convention type has been deprecated...
+- Check : org.tensorflow.lite to be declated only once
+- Critical - They are telling you that the method MediaStore.Images.Media.getBitmap(ContentResolver, Uri) is deprecated.
+    - The recommended alternative is to use ImageDecoder.createSource (for API 28+) or a library like Coil, Glide, or Picasso which handle this more efficiently and safely (including content URI parsing, background threading, sampling, and error handling).
+    // In PhotoViewModel or MainActivity
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, imageUri)
+                    bitmap = ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        // Optional: configure decoder, e.g., set a target size for subsampling
+                        // decoder.setTargetSampleSize(2)
+                    }
+                } else {
+                    // Keep the old method for older APIs, but be aware of its issues
+                    @Suppress("DEPRECATION")
+                    bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
+                }
+                
+
+
+## Feature updatation
+- create a permanent store for seed face embeddings
+- reduce the trimming of the image before face identification. later, stop trimming 
+- recognise multiple faces in a single photograph
+- store photograph and match status [with multiple peoples]
