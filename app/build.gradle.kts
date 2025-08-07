@@ -31,6 +31,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
+        @Suppress("DEPRECATION")
         jvmTarget = "1.8"
     }
     buildFeatures{

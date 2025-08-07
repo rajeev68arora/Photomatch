@@ -42,7 +42,7 @@ class PhotoProcessingActivity : AppCompatActivity() {
 
     private fun setupViews() {
         // Setup RecyclerView for detected faces
-        detectedFaceAdapter = DetectedFaceAdapter { face, similarity ->
+        detectedFaceAdapter = DetectedFaceAdapter { _, _ ->
             // Handle face click - could show enlarged view
         }
         
