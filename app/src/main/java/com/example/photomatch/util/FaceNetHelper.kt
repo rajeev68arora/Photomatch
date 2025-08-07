@@ -5,8 +5,10 @@ import android.util.Log
 import org.tensorflow.lite.Interpreter
 import android.graphics.*
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.example.photomatch.data.FaceDetectionResult
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -32,7 +34,7 @@ object FaceNetHelper {
 
     private val faceDetector by lazy {
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)  // Use accurate mode for full resolution
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)  // Use fast mode for better performance
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
     // Rajeev - we can set landmark mode to all to get face landmarks and use them for aligning the face
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
@@ -95,6 +97,69 @@ object FaceNetHelper {
             throw e
         }
     }
+
+    /**
+     * Enhanced method that returns detailed face detection results with embeddings
+     */
+    suspend fun getFaceDetectionResults(originalBitmap: Bitmap, context: Context): List<FaceDetectionResult> {
+        try {
+            Log.d("FaceNetHelper", "Processing full resolution image: ${originalBitmap.width}x${originalBitmap.height}")
+            
+            // Initialize interpreter
+            initializeInterpreter(context)
+            
+            // Detect all faces in the image
+            val faces = detectAllFaces(originalBitmap)
+            
+            if (faces.isEmpty()) {
+                Log.w("FaceNetHelper", "No faces detected in image")
+                return emptyList()
+            }
+            
+            val results = mutableListOf<FaceDetectionResult>()
+            
+            for (face in faces) {
+                try {
+                    // Process each face
+                    val faceBitmap = cropFace(originalBitmap, face.boundingBox)
+                    val byteBuffer = bitmapToByteBuffer(faceBitmap)
+                    
+                    // Generate embedding
+                    val outputArray = Array(1) { FloatArray(EMBEDDING_SIZE) }
+                    interpreter?.run(byteBuffer, outputArray)
+                    
+                    // Normalize embedding
+                    val embedding = outputArray[0]
+                    val norm = sqrt(embedding.map { it * it }.sum())
+                    for (i in embedding.indices) {
+                        embedding[i] /= norm
+                    }
+                    
+                    results.add(
+                        FaceDetectionResult(
+                            boundingBox = face.boundingBox,
+                            embedding = embedding,
+                            croppedFaceBitmap = faceBitmap,
+                            confidence = 1.0f // ML Kit doesn't provide confidence score directly
+                        )
+                    )
+                    
+                    Log.d("FaceNetHelper", "Processed face with bounds: ${face.boundingBox}")
+                    
+                } catch (e: Exception) {
+                    Log.e("FaceNetHelper", "Error processing individual face: ${e.message}")
+                    continue
+                }
+            }
+            
+            return results
+            
+        } catch (e: Exception) {
+            Log.e("FaceNetHelper", "Error during face detection: ${e.message}")
+            throw e
+        }
+    }
+
 // Rajeev - why is the image being scaled before detecting faces
     // what is the maximum size of image that can be processed
     private fun scaleDownBitmap(bitmap: Bitmap): Bitmap {
@@ -136,6 +201,22 @@ object FaceNetHelper {
             .addOnFailureListener { e ->
                 Log.e("FaceNetHelper", "Face detection failed: ${e.message}")
                 continuation.resume(null)
+            }
+    }
+
+    /**
+     * Detects all faces in the given bitmap
+     */
+    private suspend fun detectAllFaces(bitmap: Bitmap): List<Face> = suspendCoroutine { continuation ->
+        val image = InputImage.fromBitmap(bitmap, 0)
+
+        faceDetector.process(image)
+            .addOnSuccessListener { faces ->
+                continuation.resume(faces)
+            }
+            .addOnFailureListener { e ->
+                Log.e("FaceNetHelper", "Face detection failed: ${e.message}")
+                continuation.resume(emptyList())
             }
     }
 
@@ -203,4 +284,25 @@ object FaceNetHelper {
     }
 
     private fun sqrt(value: Float): Float = kotlin.math.sqrt(value)
+
+    /**
+     * Calculate cosine similarity between two embeddings
+     */
+    fun calculateSimilarity(embedding1: FloatArray, embedding2: FloatArray): Float {
+        var dotProduct = 0f
+        var norm1 = 0f
+        var norm2 = 0f
+
+        for (i in embedding1.indices) {
+            dotProduct += embedding1[i] * embedding2[i]
+            norm1 += embedding1[i] * embedding1[i]
+            norm2 += embedding2[i] * embedding2[i]
+        }
+
+        return if (norm1 == 0f || norm2 == 0f) {
+            0f
+        } else {
+            dotProduct / (sqrt(norm1) * sqrt(norm2))
+        }
+    }
 }

@@ -74,6 +74,9 @@ class MainActivity : AppCompatActivity() {
         setupObservers()
         setupClickListeners()
         checkPermissions()
+        
+        // Handle results from PhotoProcessingActivity
+        handleIncomingResults()
     }
 
     private fun setupRecyclerView() {
@@ -141,30 +144,31 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun processImage(bitmap: Bitmap) {
-        binding.progressLayout.visibility = View.VISIBLE
-        binding.captureButton.isEnabled = false
-        binding.uploadButton.isEnabled = false
-
         lifecycleScope.launch {
             try {
-                val workingBitmap = bitmap.config?.let { bitmap.copy(it, true) }
+                // Save the reference image temporarily
+                val tempFile = File(cacheDir, "reference_image_${System.currentTimeMillis()}.jpg")
+                val fileOutputStream = tempFile.outputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fileOutputStream)
+                fileOutputStream.close()
+                
+                val referenceUri = FileProvider.getUriForFile(
+                    this@MainActivity,
+                    "${packageName}.fileprovider",
+                    tempFile
+                )
 
-                val referenceEmbedding = withContext(Dispatchers.Default) {
-                    FaceNetHelper.getFaceEmbeddings(workingBitmap!!, this@MainActivity)
+                // Launch PhotoProcessingActivity
+                val intent = Intent(this@MainActivity, PhotoProcessingActivity::class.java).apply {
+                    putExtra(PhotoProcessingActivity.EXTRA_REFERENCE_PHOTO_URI, referenceUri.toString())
                 }
+                startActivity(intent)
 
-                workingBitmap?.recycle()
-                Log.d("MainActivity", "Reference embedding generated successfully - ${referenceEmbedding.toList()}")
-
-                photoViewModel.findMatchingFaces(this@MainActivity, referenceEmbedding)
+                Log.d("MainActivity", "Launching PhotoProcessingActivity with reference image")
+                
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error processing image: ${e.message}")
-                withContext(Dispatchers.Main) {
-                    binding.progressLayout.visibility = View.GONE
-                    binding.captureButton.isEnabled = true
-                    binding.uploadButton.isEnabled = true
-                    showToast("Error: ${e.message}")
-                }
+                showToast("Error: ${e.message}")
             }
         }
     }
@@ -195,6 +199,23 @@ class MainActivity : AppCompatActivity() {
         } catch (e: IOException) {
             e.printStackTrace()
             null
+        }
+    }
+    
+    private fun handleIncomingResults() {
+        // Check if this activity was launched with results from PhotoProcessingActivity
+        if (intent.getBooleanExtra("show_results", false)) {
+            val matchingPhotos = intent.getStringArrayListExtra("matching_photos")
+            if (!matchingPhotos.isNullOrEmpty()) {
+                val uris = matchingPhotos.map { Uri.parse(it) }
+                photoAdapter.submitList(uris)
+                
+                // Hide the input buttons since we're showing results
+                binding.captureButton.visibility = View.GONE
+                binding.uploadButton.visibility = View.GONE
+                
+                showToast("Found ${uris.size} matching photos")
+            }
         }
     }
 
