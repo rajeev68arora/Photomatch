@@ -40,9 +40,12 @@ android {
 
 dependencies {
 
-    // ML Kit or TensorFlow Lite for FaceNet
-    implementation ("org.tensorflow:tensorflow-lite:2.14.0")
-    implementation ("org.tensorflow:tensorflow-lite-support:0.4.3")
+    // ML Kit or TensorFlow Lite for FaceNet - Using stable version without conflicts
+    implementation ("org.tensorflow:tensorflow-lite:2.16.1")
+    implementation ("org.tensorflow:tensorflow-lite-support:0.4.4") {
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
+    }
 
 // Glide for image loading
     implementation ("com.github.bumptech.glide:glide:4.16.0")

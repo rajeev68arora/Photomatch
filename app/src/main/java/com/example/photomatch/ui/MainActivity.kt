@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -45,8 +46,18 @@ class MainActivity : AppCompatActivity() {
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         capturedImageUri?.let { uri ->
             if (success) {
-                val capturedBitmap = MediaStore.Images.Media.getBitmap(contentResolver, uri)
-                processImage(capturedBitmap)
+                try {
+                    val capturedBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        MediaStore.Images.Media.getBitmap(contentResolver, uri)
+                    }
+                    processImage(capturedBitmap)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error loading captured image: ${e.message}")
+                    showToast("Error loading captured image")
+                }
             } else {
                 showToast("Photo capture failed.")
             }

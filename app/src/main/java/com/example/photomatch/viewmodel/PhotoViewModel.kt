@@ -1,8 +1,11 @@
 package com.example.photomatch.viewmodel
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -45,8 +48,12 @@ class PhotoViewModel : ViewModel() {
             for ((index, imageUri) in galleryImages.withIndex()) {
 
                     try {
-                        val bitmap =
+                        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, imageUri))
+                        } else {
+                            @Suppress("DEPRECATION")
                             MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
+                        }
                         val candidateEmbedding = FaceNetHelper.getFaceEmbeddings(bitmap, context)
                         Log.d("FaceMatching", "Candidate embedding: ${candidateEmbedding.take(5)}")
                         val similarity =
