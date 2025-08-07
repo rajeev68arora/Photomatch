@@ -55,8 +55,8 @@ class PhotoViewModel : ViewModel() {
 
 
 
-                        if (similarity > 0.60f) {
-                            // Match threshold, you can adjust this value current = 0.6F Float
+                        if (similarity > 0.40f) {
+                            // Match threshold, you can adjust this value current = 0.4F Float
                             Log.d(
                                 TAG,
                                 "Match found! referenceEmbedding - ${referenceEmbedding.toList()}, candidateEmbedding - ${candidateEmbedding.toList()}"

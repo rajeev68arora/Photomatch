@@ -17,10 +17,11 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
 
-// The FaceNetHelper and PhotoViewModel code you've shared focuses on generating
-// embeddings and finding matches based on a given reference embedding, but it does not
-// include logic for persistently storing or managing a database of known faces
-// and their embeddings.
+// FaceNetHelper: Enhanced for full resolution processing
+// Changes made to reduce photo trimming:
+// 1. Removed scaleDownBitmap() preprocessing - now uses full resolution for face detection
+// 2. Increased face crop padding from 20% to 50% for more context
+// 3. Uses PERFORMANCE_MODE_ACCURATE for better detection on high-resolution images
 object FaceNetHelper {
     private const val MODEL_FILE = "facenet.tflite"
     private const val IMAGE_SIZE = 160
@@ -31,7 +32,7 @@ object FaceNetHelper {
 
     private val faceDetector by lazy {
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)  // Changed to FAST mode
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)  // Use accurate mode for full resolution
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
     // Rajeev - we can set landmark mode to all to get face landmarks and use them for aligning the face
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
@@ -62,25 +63,19 @@ object FaceNetHelper {
 
     suspend fun getFaceEmbeddings(originalBitmap: Bitmap, context: Context): FloatArray {
         try {
-            // Scale down the image if it's too large
-            val scaledBitmap = scaleDownBitmap(originalBitmap)
-            Log.d("FaceNetHelper", "Scaled bitmap size: ${scaledBitmap.width}x${scaledBitmap.height}")
+            // Use full resolution image for better face detection
+            Log.d("FaceNetHelper", "Processing full resolution image: ${originalBitmap.width}x${originalBitmap.height}")
 
             // Initialize interpreter
             initializeInterpreter(context)
 
-            // Detect face
-            val face = detectFace(scaledBitmap) ?: throw IllegalStateException("No face detected")
+            // Detect face on full resolution image
+            val face = detectFace(originalBitmap) ?: throw IllegalStateException("No face detected")
             Log.d("FaceNetHelper", "Face detected with bounds: ${face.boundingBox}")
 
             // Process face
-            val faceBitmap = cropFace(scaledBitmap, face.boundingBox)
+            val faceBitmap = cropFace(originalBitmap, face.boundingBox)
             val byteBuffer = bitmapToByteBuffer(faceBitmap) // Input for model
-
-            // Clean up scaled bitmap if it's different from original
-            if (scaledBitmap != originalBitmap) {
-                scaledBitmap.recycle()
-            }
 
             // Generate embedding
             val outputArray = Array(1) { FloatArray(EMBEDDING_SIZE) }
