@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    INTEGRATED FACE ITEM LAYOUT WITH CONFIRMATION CONTROLS
+    
+    EVOLUTION:
+    1. Initially: Simple face display without confirmation controls
+    2. Added separate confirmation UI in dedicated section
+    3. User request: "check box has to appear diretly under the faces detected and not as a separate frame"
+    4. User request: "put two tick boxes, yes and no, toggle so that only one can be ticked"
+    5. Current: Integrated Yes/No toggle buttons directly under face display
+    
+    LAYOUT STRUCTURE:
+    - Face image at top (80dp x 80dp)
+    - Similarity percentage below image
+    - Match status text (AUTO MATCH/AUTO REJECT/CONFIRM?/USER CONFIRMED/USER REJECTED)
+    - Yes/No toggle buttons (visible only for PENDING state)
+    
+    TOGGLE BEHAVIOR:
+    - Only one button can be selected at a time
+    - Yes button: Confirms match, saves to database
+    - No button: Rejects match, does not save to database
+-->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="120dp"
@@ -31,7 +52,7 @@
             android:textAlignment="center"
             android:textSize="12sp"
             android:textStyle="bold"
-            android:textColor="@color/design_default_color_primary" />
+            android:textColor="@android:color/holo_blue_dark" />
 
         <TextView
             android:id="@+id/tvMatchStatus"
@@ -41,7 +62,44 @@
             android:textAlignment="center"
             android:textSize="10sp"
             android:textStyle="bold"
-            android:textColor="@color/design_default_color_secondary" />
+            android:textColor="@android:color/holo_orange_dark" />
+
+        <!-- INTEGRATED CONFIRMATION BUTTONS (replaces separate confirmation UI) -->
+        <!-- Visible only for PENDING state (40-60% similarity) -->
+        <!-- Toggle behavior: only one button can be active at a time -->
+        <LinearLayout
+            android:id="@+id/llConfirmationButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp"
+            android:visibility="gone">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnYes"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="Yes"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp"
+                android:backgroundTint="@android:color/holo_blue_light"
+                android:textColor="@android:color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnNo"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="No"
+                android:textSize="10sp"
+                android:layout_marginStart="2dp"
+                android:backgroundTint="@android:color/darker_gray"
+                android:textColor="@android:color/white" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

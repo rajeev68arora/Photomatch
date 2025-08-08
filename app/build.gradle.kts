@@ -58,6 +58,9 @@ dependencies {
     // Face features
     implementation ("com.google.mlkit:face-detection:16.1.7")
 
+    // SQLite database - using native Android SQLite
+    // No additional dependencies needed - SQLite is built into Android
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

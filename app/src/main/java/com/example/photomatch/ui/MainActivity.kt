@@ -34,13 +34,16 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import java.io.File
 import java.io.IOException
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), PersonNameDialog.PersonNameListener {
     var TAG = "MainActivity"
     private lateinit var binding: ActivityMainBinding
     private val photoViewModel: PhotoViewModel by viewModel()
     private lateinit var photoAdapter: PhotoAdapter
 
     private var capturedImageUri: Uri? = null
+    private var pendingBitmap: Bitmap? = null
+    private var personFirstName: String = ""
+    private var personLastName: String = ""
 
     // Register for activity result to take a picture
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -155,31 +158,47 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun processImage(bitmap: Bitmap) {
-        lifecycleScope.launch {
-            try {
-                // Save the reference image temporarily
-                val tempFile = File(cacheDir, "reference_image_${System.currentTimeMillis()}.jpg")
-                val fileOutputStream = tempFile.outputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fileOutputStream)
-                fileOutputStream.close()
-                
-                val referenceUri = FileProvider.getUriForFile(
-                    this@MainActivity,
-                    "${packageName}.fileprovider",
-                    tempFile
-                )
+        // Store bitmap and show name dialog first
+        pendingBitmap = bitmap
+        
+        // Show person name dialog
+        val nameDialog = PersonNameDialog.newInstance()
+        nameDialog.show(supportFragmentManager, "PersonNameDialog")
+    }
+    
+    private fun proceedWithProcessing() {
+        pendingBitmap?.let { bitmap ->
+            lifecycleScope.launch {
+                try {
+                    // Save the reference image temporarily
+                    val tempFile = File(cacheDir, "reference_image_${System.currentTimeMillis()}.jpg")
+                    val fileOutputStream = tempFile.outputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fileOutputStream)
+                    fileOutputStream.close()
+                    
+                    val referenceUri = FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${packageName}.fileprovider",
+                        tempFile
+                    )
 
-                // Launch PhotoProcessingActivity
-                val intent = Intent(this@MainActivity, PhotoProcessingActivity::class.java).apply {
-                    putExtra(PhotoProcessingActivity.EXTRA_REFERENCE_PHOTO_URI, referenceUri.toString())
+                    // Launch PhotoProcessingActivity with person name
+                    val intent = Intent(this@MainActivity, PhotoProcessingActivity::class.java).apply {
+                        putExtra(PhotoProcessingActivity.EXTRA_REFERENCE_PHOTO_URI, referenceUri.toString())
+                        putExtra(PhotoProcessingActivity.EXTRA_PERSON_FIRST_NAME, personFirstName)
+                        putExtra(PhotoProcessingActivity.EXTRA_PERSON_LAST_NAME, personLastName)
+                    }
+                    startActivity(intent)
+
+                    Log.d("MainActivity", "Launching PhotoProcessingActivity with reference image for $personFirstName $personLastName")
+                    
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error processing image: ${e.message}")
+                    showToast("Error: ${e.message}")
+                } finally {
+                    // Clear pending bitmap
+                    pendingBitmap = null
                 }
-                startActivity(intent)
-
-                Log.d("MainActivity", "Launching PhotoProcessingActivity with reference image")
-                
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error processing image: ${e.message}")
-                showToast("Error: ${e.message}")
             }
         }
     }
@@ -228,6 +247,19 @@ class MainActivity : AppCompatActivity() {
                 showToast("Found ${uris.size} matching photos")
             }
         }
+    }
+
+    // PersonNameDialog.PersonNameListener implementation
+    override fun onPersonNameEntered(firstName: String, lastName: String) {
+        personFirstName = firstName
+        personLastName = lastName
+        proceedWithProcessing()
+    }
+    
+    override fun onPersonNameCanceled() {
+        // Clear pending bitmap
+        pendingBitmap = null
+        showToast("Photo processing canceled")
     }
 
     companion object {

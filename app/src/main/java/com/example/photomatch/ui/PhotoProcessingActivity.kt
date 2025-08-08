@@ -7,28 +7,59 @@ import android.view.View
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.example.photomatch.R
 import com.example.photomatch.adapter.DetectedFaceAdapter
+import com.example.photomatch.adapter.DetectedFaceItem
 import com.example.photomatch.data.ProcessingStatus
 import com.example.photomatch.databinding.ActivityPhotoProcessingBinding
 import com.example.photomatch.util.FaceNetHelper
 import com.example.photomatch.viewmodel.PhotoProcessingViewModel
+import kotlinx.coroutines.launch
 
 /**
- * Activity for step-by-step photo processing with face detection visualization
+ * Activity for step-by-step photo processing with integrated face detection and confirmation
+ * 
+ * UI EVOLUTION HISTORY:
+ * 1. Initially: Separate RecyclerViews for detected faces and confirmation
+ * 2. Used ConfirmationFaceAdapter in dedicated confirmation section
+ * 3. User feedback: "the check box has to appear diretly under the faces detected and not as a separate frame"
+ * 4. User requested: "put two tick boxes, yes and no, toggle so that only one can be ticked"
+ * 5. Refactored: Integrated Yes/No buttons directly under each face in single RecyclerView
+ * 6. Removed: Separate confirmation UI section and ConfirmationFaceAdapter
+ * 
+ * CURRENT ARCHITECTURE:
+ * - Single DetectedFaceAdapter handles both display and confirmation
+ * - Three-tier system: AUTO_MATCH (green), AUTO_REJECT (red), PENDING (orange with buttons)
+ * - Integrated Yes/No toggle buttons appear inline under faces needing confirmation
+ * - Real-time database operations based on user confirmations
+ * 
+ * DATABASE INTEGRATION:
+ * - AUTO_MATCH faces: Saved automatically to database
+ * - User confirmed faces: Saved when Yes button clicked
+ * - Rejected faces: Not saved to database (per user request)
  */
 class PhotoProcessingActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_REFERENCE_PHOTO_URI = "reference_photo_uri"
+        const val EXTRA_PERSON_FIRST_NAME = "person_first_name"
+        const val EXTRA_PERSON_LAST_NAME = "person_last_name"
         private const val TAG = "PhotoProcessingActivity"
+        
+        // Threshold constants
+        const val AUTO_MATCH_THRESHOLD = 0.60f  // ≥60% automatic match
+        const val REJECT_THRESHOLD = 0.40f      // ≤40% automatic rejection
     }
 
     private val viewModel: PhotoProcessingViewModel by viewModels()
     private lateinit var detectedFaceAdapter: DetectedFaceAdapter
     private lateinit var binding: ActivityPhotoProcessingBinding
+    
+    private var personFirstName: String = ""
+    private var personLastName: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,10 +71,30 @@ class PhotoProcessingActivity : AppCompatActivity() {
         initializeProcessing()
     }
 
+    /**
+     * Setup UI components with integrated confirmation system
+     * 
+     * INTEGRATION APPROACH:
+     * - Single RecyclerView replaces previous dual-adapter system
+     * - Confirmation callback handles user decisions inline
+     * - Eliminates separate confirmation UI section
+     */
     private fun setupViews() {
-        // Setup RecyclerView for detected faces
-        detectedFaceAdapter = DetectedFaceAdapter { _, _ ->
-            // Handle face click - could show enlarged view
+        // Setup unified RecyclerView for faces with integrated confirmation controls
+        detectedFaceAdapter = DetectedFaceAdapter { face, confirmationState ->
+            when (confirmationState) {
+                DetectedFaceAdapter.ConfirmationState.USER_YES -> {
+                    // User clicked Yes button - save match to database as CONFIRMED type
+                    viewModel.confirmSelectedFaces(listOf(face))
+                }
+                DetectedFaceAdapter.ConfirmationState.USER_NO -> {
+                    // User clicked No button - no database action (rejected matches not stored)
+                    // The adapter handles UI state change to show No selection
+                }
+                else -> {
+                    // AUTO_MATCH, AUTO_REJECT, PENDING states don't trigger additional actions
+                }
+            }
         }
         
         binding.rvDetectedFaces.apply {
@@ -66,6 +117,12 @@ class PhotoProcessingActivity : AppCompatActivity() {
         }
 
         binding.btnShowSummary.setOnClickListener {
+            showSummaryScreen()
+        }
+
+
+        // Setup STOP button listener
+        binding.btnStop.setOnClickListener {
             showSummaryScreen()
         }
     }
@@ -91,12 +148,19 @@ class PhotoProcessingActivity : AppCompatActivity() {
         viewModel.processingProgress.observe(this) { progress ->
             updateProgressBar(progress)
         }
+
     }
 
     private fun initializeProcessing() {
         val referencePhotoUri = intent.getStringExtra(EXTRA_REFERENCE_PHOTO_URI)
-        if (referencePhotoUri != null) {
-            viewModel.initializeWithReference(Uri.parse(referencePhotoUri), this)
+        personFirstName = intent.getStringExtra(EXTRA_PERSON_FIRST_NAME) ?: ""
+        personLastName = intent.getStringExtra(EXTRA_PERSON_LAST_NAME) ?: ""
+        
+        if (referencePhotoUri != null && personFirstName.isNotEmpty() && personLastName.isNotEmpty()) {
+            // Update UI to show person name
+            title = "Finding $personFirstName $personLastName"
+            
+            viewModel.initializeWithReference(Uri.parse(referencePhotoUri), this, personFirstName, personLastName)
             processCurrentPhotoIfNeeded()
         } else {
             finish() // Invalid state, return to previous screen
@@ -147,18 +211,42 @@ class PhotoProcessingActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Display processing results with integrated confirmation system
+     * 
+     * UNIFIED DISPLAY APPROACH:
+     * - All faces shown in single RecyclerView with appropriate states
+     * - Three-tier classification determines UI appearance
+     * - PENDING faces automatically show Yes/No toggle buttons
+     * 
+     * REPLACES: Previous system with separate detected and confirmation sections
+     */
     private fun showResults(result: com.example.photomatch.data.PhotoProcessingResult) {
-        // Show detected faces
+        // Show all detected faces with integrated confirmation controls
         if (result.detectedFaces.isNotEmpty()) {
             binding.tvDetectedFacesTitle.visibility = View.VISIBLE
             binding.rvDetectedFaces.visibility = View.VISIBLE
             
-            // Create pairs of (face, similarity) for adapter using individual similarities
-            val facesWithSimilarity = result.detectedFaces.map { face ->
-                Pair(face, face.similarityToReference) // Use individual face similarity
+            // Create unified face items with three-tier states
+            val faceItems = result.detectedFaces.map { face ->
+                val similarity = face.similarityToReference
+                
+                // Determine state based on three-tier thresholds
+                val confirmationState = when {
+                    similarity >= AUTO_MATCH_THRESHOLD -> DetectedFaceAdapter.ConfirmationState.AUTO_MATCH   // Green, auto-saved
+                    similarity <= REJECT_THRESHOLD -> DetectedFaceAdapter.ConfirmationState.AUTO_REJECT     // Red, not saved
+                    else -> DetectedFaceAdapter.ConfirmationState.PENDING                                   // Orange, shows Yes/No buttons
+                }
+                
+                DetectedFaceItem(
+                    face = face,
+                    similarity = similarity,
+                    confirmationState = confirmationState
+                )
             }
             
-            detectedFaceAdapter.submitList(facesWithSimilarity)
+            // Single adapter handles all face types with integrated controls
+            detectedFaceAdapter.submitList(faceItems)
         }
 
         // Show match results
@@ -242,17 +330,20 @@ class PhotoProcessingActivity : AppCompatActivity() {
     }
 
     private fun showSummaryScreen() {
-        val matchingPhotos = viewModel.getMatchingSummary()
-        
-        // Create intent to show summary with original MainActivity logic
-        val intent = Intent(this, MainActivity::class.java).apply {
-            putStringArrayListExtra("matching_photos", ArrayList(matchingPhotos.map { it.toString() }))
-            putExtra("show_results", true)
+        lifecycleScope.launch {
+            val matchingPhotos = viewModel.getMatchingSummary()
+            
+            // Create intent to show summary with original MainActivity logic
+            val intent = Intent(this@PhotoProcessingActivity, MainActivity::class.java).apply {
+                putStringArrayListExtra("matching_photos", ArrayList(matchingPhotos.map { it.toString() }))
+                putExtra("show_results", true)
+            }
+            
+            startActivity(intent)
+            finish()
         }
-        
-        startActivity(intent)
-        finish()
     }
+
 
     override fun onDestroy() {
         super.onDestroy()

@@ -12,6 +12,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.photomatch.data.FaceDetectionResult
 import com.example.photomatch.data.PhotoProcessingResult
 import com.example.photomatch.data.ProcessingStatus
+import com.example.photomatch.data.database.Match
+import com.example.photomatch.data.database.MatchRepository
+import com.example.photomatch.data.database.MatchType
 import com.example.photomatch.util.FaceNetHelper
 import com.example.photomatch.util.GalleryHelper
 import kotlinx.coroutines.launch
@@ -24,7 +27,10 @@ class PhotoProcessingViewModel : ViewModel() {
 
     companion object {
         private const val TAG = "PhotoProcessingVM"
-        private const val MATCH_THRESHOLD = 0.55f
+        // Three-tier threshold system
+        const val AUTO_MATCH_THRESHOLD = 0.60f  // ≥60% automatic match
+        const val REJECT_THRESHOLD = 0.40f      // ≤40% automatic rejection
+        // 40-60% requires user confirmation
     }
 
     // Reference face embedding from the selected photo
@@ -54,11 +60,26 @@ class PhotoProcessingViewModel : ViewModel() {
 
     private val _allMatches = MutableLiveData<List<Uri>>()
     val allMatches: LiveData<List<Uri>> = _allMatches
+    
+    // LiveData for faces requiring confirmation (40-60% similarity)
+    private val _facesNeedingConfirmation = MutableLiveData<List<FaceDetectionResult>>()
+    val facesNeedingConfirmation: LiveData<List<FaceDetectionResult>> = _facesNeedingConfirmation
+
+    // Person information for this search session
+    private var personFirstName: String = ""
+    private var personLastName: String = ""
+    
+    // Database repository for storing matches
+    private var matchRepository: MatchRepository? = null
 
     /**
-     * Initialize the processing workflow with a reference photo
+     * Initialize the processing workflow with a reference photo and person information
      */
-    fun initializeWithReference(referencePhotoUri: Uri, context: Context) {
+    fun initializeWithReference(referencePhotoUri: Uri, context: Context, firstName: String, lastName: String) {
+        personFirstName = firstName
+        personLastName = lastName
+        matchRepository = MatchRepository(context)
+        
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Initializing with reference photo")
@@ -137,28 +158,79 @@ class PhotoProcessingViewModel : ViewModel() {
                     return@launch
                 }
                 
-                // Calculate individual similarities for each detected face
+                // Calculate individual similarities and categorize based on three-tier threshold system
                 val facesWithSimilarity = mutableListOf<FaceDetectionResult>()
+                val autoMatches = mutableListOf<FaceDetectionResult>()
+                val rejectedFaces = mutableListOf<FaceDetectionResult>()
+                val confirmationNeeded = mutableListOf<FaceDetectionResult>()
+                
                 var bestSimilarity = 0f
                 
                 for (face in detectedFaces) {
                     val similarity = FaceNetHelper.calculateSimilarity(referenceFace, face.embedding)
                     bestSimilarity = max(bestSimilarity, similarity)
                     
-                    // Create new FaceDetectionResult with individual similarity
+                    // Create new FaceDetectionResult with individual similarity score
                     val faceWithSimilarity = FaceDetectionResult(
                         boundingBox = face.boundingBox,
                         embedding = face.embedding,
                         croppedFaceBitmap = face.croppedFaceBitmap,
                         confidence = face.confidence,
-                        similarityToReference = similarity
+                        similarityToReference = similarity // Individual similarity for this specific face
                     )
                     facesWithSimilarity.add(faceWithSimilarity)
+                    
+                    // THREE-TIER CATEGORIZATION as requested by user
+                    when {
+                        similarity >= AUTO_MATCH_THRESHOLD -> {
+                            // ≥60% - Automatic match, will be saved to database immediately
+                            autoMatches.add(faceWithSimilarity)
+                            Log.d(TAG, "Auto-match: ${(similarity * 100).toInt()}% - will save to database")
+                        }
+                        similarity <= REJECT_THRESHOLD -> {
+                            // ≤40% - Automatic rejection, will NOT be saved (per user request)
+                            rejectedFaces.add(faceWithSimilarity)
+                            Log.d(TAG, "Auto-reject: ${(similarity * 100).toInt()}% - not saving to database")
+                        }
+                        else -> {
+                            // 40-60% - Needs user confirmation via integrated Yes/No buttons
+                            confirmationNeeded.add(faceWithSimilarity)
+                            Log.d(TAG, "Needs confirmation: ${(similarity * 100).toInt()}% - awaiting user decision")
+                        }
+                    }
                 }
                 
-                val isMatch = bestSimilarity > MATCH_THRESHOLD
+                // Save auto-matches to database only
+                val repository = matchRepository
+                if (repository != null) {
+                    for (face in autoMatches) {
+                        val match = Match(
+                            photoUri = currentUri.toString(),
+                            personFirstName = personFirstName,
+                            personLastName = personLastName,
+                            similarityScore = face.similarityToReference,
+                            matchType = MatchType.AUTO_MATCH
+                        )
+                        repository.insertMatch(match)
+                        Log.d(TAG, "Saved auto-match to database: ${(face.similarityToReference * 100).toInt()}%")
+                    }
+                    
+                    // Note: Rejected faces are no longer stored - we only save positive matches
+                }
                 
-                Log.d(TAG, "Processed ${facesWithSimilarity.size} faces, similarities: ${facesWithSimilarity.map { (it.similarityToReference * 100).toInt() }}%")
+                // Determine overall status
+                val hasAutoMatches = autoMatches.isNotEmpty()
+                val needsConfirmation = confirmationNeeded.isNotEmpty()
+                
+                // Update UI based on what we found
+                if (needsConfirmation) {
+                    // Show confirmation UI for 40-60% faces
+                    _facesNeedingConfirmation.postValue(confirmationNeeded)
+                }
+                
+                val isMatch = hasAutoMatches // Only auto-matches count as immediate matches
+                
+                Log.d(TAG, "Processed ${facesWithSimilarity.size} faces: ${autoMatches.size} auto-matches, ${confirmationNeeded.size} need confirmation, ${rejectedFaces.size} rejected")
                 
                 // Update processing result
                 updateProcessingResult(
@@ -202,12 +274,55 @@ class PhotoProcessingViewModel : ViewModel() {
     }
 
     /**
-     * Get summary of all matches
+     * Confirm selected faces from the 40-60% similarity range
      */
-    fun getMatchingSummary(): List<Uri> {
-        return processingResults
-            .filter { it.isMatch && it.processingStatus == ProcessingStatus.COMPLETED }
-            .map { it.photoUri }
+    fun confirmSelectedFaces(confirmedFaces: List<FaceDetectionResult>) {
+        viewModelScope.launch {
+            val repository = matchRepository
+            if (repository != null && currentPhotoIndex < allPhotos.size) {
+                val currentUri = allPhotos[currentPhotoIndex]
+                
+                for (face in confirmedFaces) {
+                    val match = Match(
+                        photoUri = currentUri.toString(),
+                        personFirstName = personFirstName,
+                        personLastName = personLastName,
+                        similarityScore = face.similarityToReference,
+                        matchType = MatchType.CONFIRMED
+                    )
+                    repository.insertMatch(match)
+                    Log.d(TAG, "User confirmed match: ${(face.similarityToReference * 100).toInt()}%")
+                }
+            }
+            
+            // Clear the confirmation UI
+            _facesNeedingConfirmation.postValue(emptyList())
+        }
+    }
+    
+    /**
+     * Skip all faces requiring confirmation (user chose not to confirm any)
+     */
+    fun skipConfirmationFaces() {
+        // Just clear the confirmation UI - no database action needed for skipped faces
+        _facesNeedingConfirmation.postValue(emptyList())
+        Log.d(TAG, "User skipped confirmation for ${facesNeedingConfirmation.value?.size ?: 0} faces")
+    }
+
+    /**
+     * Get summary of all confirmed matches from database
+     */
+    suspend fun getMatchingSummary(): List<Uri> {
+        val repository = matchRepository
+        return if (repository != null) {
+            val matches = repository.getConfirmedMatchesForPerson(personFirstName, personLastName)
+            matches.map { Uri.parse(it.photoUri) }
+        } else {
+            // Fallback to processing results if repository not available
+            processingResults
+                .filter { it.isMatch && it.processingStatus == ProcessingStatus.COMPLETED }
+                .map { it.photoUri }
+        }
     }
 
     /**
@@ -259,9 +374,6 @@ class PhotoProcessingViewModel : ViewModel() {
             )
             
             _currentPhotoResult.value = processingResults[currentPhotoIndex]
-            
-            // Update matches summary
-            _allMatches.value = getMatchingSummary()
         }
     }
 
