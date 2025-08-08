@@ -1,50 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    MAIN ACTIVITY LAYOUT WITH PERSISTENT PEOPLE SELECTION
+    
+    FEATURES:
+    - Three photo selection modes: Capture, Upload, Select Saved Person
+    - Dropdown showing saved people with face thumbnails
+    - Progress tracking for gallery processing
+    - Results display with matching photos
+    
+    UI EVOLUTION:
+    - Added third option for selecting from saved people database
+    - Maintains existing capture/upload functionality
+    - Enhanced with person management capabilities
+-->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- Button to capture a photo -->
-    <Button
+    <!-- Photo Selection Methods -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Choose how to find a person:"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Capture Photo Button -->
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/captureButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Capture Photo"
-        android:layout_marginTop="15dp"
-        android:layout_marginBottom="7dp" />
-    <Button
+        android:text="📷 Take Photo"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Upload Photo Button -->
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/uploadButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Upload Photo"
-        android:layout_marginBottom="16dp" />
+        android:text="📁 Upload Photo"
+        android:layout_marginBottom="8dp" />
 
-    <!-- Progress layout -->
-    <LinearLayout
+    <!-- Select Saved Person Section -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="👤 Select from saved people:"
+                android:textSize="14sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSelectPerson"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Select Person"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Progress layout with Material Design -->
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/progressLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
+        android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="?attr/colorPrimaryContainer">
 
-        <ProgressBar
-            android:id="@+id/progressBar"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-            android:max="100"
-            android:layout_marginBottom="8dp" />
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="16dp">
 
-        <TextView
-            android:id="@+id/progressText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Processing: 0%"
-            android:textSize="14sp" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/tvProcessingPerson"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Searching for matches..."
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnPrimaryContainer"
+                android:layout_marginBottom="8dp" />
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                android:max="100"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Processing: 0%"
+                android:textSize="14sp"
+                android:textColor="?attr/colorOnPrimaryContainer" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- RecyclerView to display matching photos -->
     <androidx.recyclerview.widget.RecyclerView
