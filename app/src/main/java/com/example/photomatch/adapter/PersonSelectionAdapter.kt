@@ -58,4 +58,40 @@ class PersonSelectionAdapter(
     override fun onBindViewHolder(holder: PersonViewHolder, position: Int) {
         val person = people[position]
         
-        // Display face thumbnail\n        holder.ivFace.setImageBitmap(person.faceBitmap)\n        \n        // Display person name\n        holder.tvName.text = person.fullName\n        \n        // Display last used date\n        val lastUsedDate = Date(person.lastUsedTimestamp)\n        holder.tvLastUsed.text = \"Last used: ${dateFormat.format(lastUsedDate)}\"\n        \n        // Show recent indicator for people used within last 7 days\n        val isRecent = System.currentTimeMillis() - person.lastUsedTimestamp < 7 * 24 * 60 * 60 * 1000L\n        holder.viewRecentIndicator.visibility = if (isRecent) View.VISIBLE else View.GONE\n        \n        // Set click listeners\n        holder.itemView.setOnClickListener {\n            onPersonSelected(person)\n        }\n        \n        holder.itemView.setOnLongClickListener {\n            onPersonDeleted(person)\n            true\n        }\n    }\n    \n    override fun getItemCount(): Int = people.size\n    \n    /**\n     * Update the list of people and refresh the RecyclerView\n     * \n     * @param newPeople Updated list of people\n     */\n    fun updatePeople(newPeople: List<Person>) {\n        people = newPeople\n        notifyDataSetChanged()\n    }\n}"
+        // Display face thumbnail
+        holder.ivFace.setImageBitmap(person.faceBitmap)
+        
+        // Display person name
+        holder.tvName.text = person.fullName
+        
+        // Display last used date
+        val lastUsedDate = Date(person.lastUsedTimestamp)
+        holder.tvLastUsed.text = "Last used: ${dateFormat.format(lastUsedDate)}"
+        
+        // Show recent indicator for people used within last 7 days
+        val isRecent = System.currentTimeMillis() - person.lastUsedTimestamp < 7 * 24 * 60 * 60 * 1000L
+        holder.viewRecentIndicator.visibility = if (isRecent) View.VISIBLE else View.GONE
+        
+        // Set click listeners
+        holder.itemView.setOnClickListener {
+            onPersonSelected(person)
+        }
+        
+        holder.itemView.setOnLongClickListener {
+            onPersonDeleted(person)
+            true
+        }
+    }
+    
+    override fun getItemCount(): Int = people.size
+    
+    /**
+     * Update the list of people and refresh the RecyclerView
+     * 
+     * @param newPeople Updated list of people
+     */
+    fun updatePeople(newPeople: List<Person>) {
+        people = newPeople
+        notifyDataSetChanged()
+    }
+}

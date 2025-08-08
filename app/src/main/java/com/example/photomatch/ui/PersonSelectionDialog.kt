@@ -17,8 +17,187 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.photomatch.R
 import com.example.photomatch.data.database.Person
 import com.example.photomatch.data.database.PeopleRepository
-import com.google.android.material.button.MaterialButton
+import com.example.photomatch.adapter.PersonSelectionAdapter
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.launch
 
-/**\n * Dialog for selecting a person from the saved people database\n * \n * PURPOSE:\n * - Show all saved people with face thumbnails in a grid layout\n * - Allow searching/filtering by name\n * - Provide option to add new person\n * - Enable person management (delete with confirmation)\n * \n * FEATURES:\n * - Grid layout with face thumbnails and names\n * - Real-time search filtering\n * - Recently used people shown first\n * - Add new person option\n * - Long press to delete person (with confirmation)\n * \n * USER WORKFLOW:\n * 1. Dialog opens showing all saved people\n * 2. User can search by typing in search field\n * 3. User selects existing person or chooses to add new\n * 4. Dialog returns selected person to calling activity\n */\nclass PersonSelectionDialog : DialogFragment() {\n    \n    interface PersonSelectionListener {\n        fun onPersonSelected(person: Person)\n        fun onAddNewPersonRequested()\n    }\n    \n    private var listener: PersonSelectionListener? = null\n    private lateinit var peopleRepository: PeopleRepository\n    private lateinit var adapter: PersonSelectionAdapter\n    private lateinit var rvPeople: RecyclerView\n    private lateinit var etSearch: EditText\n    private lateinit var tvEmptyState: TextView\n    \n    private var allPeople: List<Person> = emptyList()\n    private var filteredPeople: List<Person> = emptyList()\n    \n    override fun onAttach(context: Context) {\n        super.onAttach(context)\n        listener = context as? PersonSelectionListener\n            ?: throw IllegalArgumentException(\"Activity must implement PersonSelectionListener\")\n        peopleRepository = PeopleRepository(context)\n    }\n    \n    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {\n        val view = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_person_selection, null)\n        \n        setupViews(view)\n        loadPeople()\n        \n        return AlertDialog.Builder(requireContext())\n            .setTitle(\"Select Person\")\n            .setView(view)\n            .setNegativeButton(\"Cancel\", null)\n            .create()\n    }\n    \n    private fun setupViews(view: View) {\n        etSearch = view.findViewById(R.id.etSearch)\n        rvPeople = view.findViewById(R.id.rvPeople)\n        tvEmptyState = view.findViewById(R.id.tvEmptyState)\n        val fabAddNew = view.findViewById<FloatingActionButton>(R.id.fabAddNew)\n        \n        // Setup RecyclerView with grid layout\n        adapter = PersonSelectionAdapter(\n            people = filteredPeople,\n            onPersonSelected = { person ->\n                // Update last used timestamp\n                lifecycleScope.launch {\n                    peopleRepository.updateLastUsed(person.id)\n                }\n                listener?.onPersonSelected(person)\n                dismiss()\n            },\n            onPersonDeleted = { person ->\n                showDeleteConfirmation(person)\n            }\n        )\n        \n        rvPeople.layoutManager = GridLayoutManager(context, 2) // 2 columns\n        rvPeople.adapter = adapter\n        \n        // Setup search functionality\n        etSearch.addTextChangedListener(object : TextWatcher {\n            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}\n            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}\n            \n            override fun afterTextChanged(s: Editable?) {\n                filterPeople(s.toString())\n            }\n        })\n        \n        // Setup add new person button\n        fabAddNew.setOnClickListener {\n            listener?.onAddNewPersonRequested()\n            dismiss()\n        }\n    }\n    \n    private fun loadPeople() {\n        lifecycleScope.launch {\n            try {\n                allPeople = peopleRepository.getAllPeople()\n                filteredPeople = allPeople\n                adapter.updatePeople(filteredPeople)\n                updateEmptyState()\n            } catch (e: Exception) {\n                // Handle error - show empty state\n                allPeople = emptyList()\n                filteredPeople = emptyList()\n                adapter.updatePeople(filteredPeople)\n                updateEmptyState()\n            }\n        }\n    }\n    \n    private fun filterPeople(query: String) {\n        filteredPeople = if (query.isBlank()) {\n            allPeople\n        } else {\n            allPeople.filter { person ->\n                person.firstName.contains(query, ignoreCase = true) ||\n                person.lastName.contains(query, ignoreCase = true) ||\n                person.fullName.contains(query, ignoreCase = true)\n            }\n        }\n        \n        adapter.updatePeople(filteredPeople)\n        updateEmptyState()\n    }\n    \n    private fun updateEmptyState() {\n        if (filteredPeople.isEmpty()) {\n            rvPeople.visibility = View.GONE\n            tvEmptyState.visibility = View.VISIBLE\n            \n            tvEmptyState.text = if (allPeople.isEmpty()) {\n                \"No saved people found.\\nTap + to add your first person!\"\n            } else {\n                \"No people match your search.\"\n            }\n        } else {\n            rvPeople.visibility = View.VISIBLE\n            tvEmptyState.visibility = View.GONE\n        }\n    }\n    \n    private fun showDeleteConfirmation(person: Person) {\n        AlertDialog.Builder(requireContext())\n            .setTitle(\"Delete Person\")\n            .setMessage(\"Are you sure you want to delete ${person.fullName}? This will also remove all their match records.\")\n            .setPositiveButton(\"Delete\") { _, _ ->\n                deletePerson(person)\n            }\n            .setNegativeButton(\"Cancel\", null)\n            .show()\n    }\n    \n    private fun deletePerson(person: Person) {\n        lifecycleScope.launch {\n            try {\n                peopleRepository.deletePerson(person.id)\n                // Reload the list\n                loadPeople()\n            } catch (e: Exception) {\n                // Handle error - could show a toast or snackbar\n            }\n        }\n    }\n    \n    override fun onDestroy() {\n        super.onDestroy()\n        peopleRepository.close()\n    }\n}"
+/**
+ * Dialog for selecting a person from the saved people database
+ * 
+ * PURPOSE:
+ * - Show all saved people with face thumbnails in a grid layout
+ * - Allow searching/filtering by name
+ * - Provide option to add new person
+ * - Enable person management (delete with confirmation)
+ * 
+ * FEATURES:
+ * - Grid layout with face thumbnails and names
+ * - Real-time search filtering
+ * - Recently used people shown first
+ * - Add new person option
+ * - Long press to delete person (with confirmation)
+ * 
+ * USER WORKFLOW:
+ * 1. Dialog opens showing all saved people
+ * 2. User can search by typing in search field
+ * 3. User selects existing person or chooses to add new
+ * 4. Dialog returns selected person to calling activity
+ */
+class PersonSelectionDialog : DialogFragment() {
+    
+    interface PersonSelectionListener {
+        fun onPersonSelected(person: Person)
+        fun onAddNewPersonRequested()
+        fun getPeopleRepository(): PeopleRepository  // NEW: Access to shared repository
+    }
+    
+    private var listener: PersonSelectionListener? = null
+    private lateinit var peopleRepository: PeopleRepository
+    private lateinit var adapter: PersonSelectionAdapter
+    private lateinit var rvPeople: RecyclerView
+    private lateinit var etSearch: EditText
+    private lateinit var tvEmptyState: TextView
+    
+    private var allPeople: List<Person> = emptyList()
+    private var filteredPeople: List<Person> = emptyList()
+    
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        listener = context as? PersonSelectionListener
+            ?: throw IllegalArgumentException("Activity must implement PersonSelectionListener")
+        
+        // NEW: Use shared repository instance from parent activity
+        peopleRepository = listener!!.getPeopleRepository()
+    }
+    
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val view = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_person_selection, null)
+        
+        setupViews(view)
+        loadPeople()
+        
+        return AlertDialog.Builder(requireContext())
+            .setTitle("Select Person")
+            .setView(view)
+            .setNegativeButton("Cancel", null)
+            .create()
+    }
+    
+    private fun setupViews(view: View) {
+        etSearch = view.findViewById(R.id.etSearch)
+        rvPeople = view.findViewById(R.id.rvPeople)
+        tvEmptyState = view.findViewById(R.id.tvEmptyState)
+        val fabAddNew = view.findViewById<FloatingActionButton>(R.id.fabAddNew)
+        
+        // Setup RecyclerView with grid layout
+        adapter = PersonSelectionAdapter(
+            people = filteredPeople,
+            onPersonSelected = { person ->
+                // Update last used timestamp
+                lifecycleScope.launch {
+                    peopleRepository.updateLastUsed(person.id)
+                }
+                listener?.onPersonSelected(person)
+                dismiss()
+            },
+            onPersonDeleted = { person ->
+                showDeleteConfirmation(person)
+            }
+        )
+        
+        rvPeople.layoutManager = GridLayoutManager(context, 2) // 2 columns
+        rvPeople.adapter = adapter
+        
+        // Setup search functionality
+        etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            
+            override fun afterTextChanged(s: Editable?) {
+                filterPeople(s.toString())
+            }
+        })
+        
+        // Setup add new person button
+        fabAddNew.setOnClickListener {
+            listener?.onAddNewPersonRequested()
+            dismiss()
+        }
+    }
+    
+    private fun loadPeople() {
+        lifecycleScope.launch {
+            try {
+                allPeople = peopleRepository.getAllPeople()
+                filteredPeople = allPeople
+                adapter.updatePeople(filteredPeople)
+                updateEmptyState()
+            } catch (e: Exception) {
+                // Handle error - show empty state
+                allPeople = emptyList()
+                filteredPeople = emptyList()
+                adapter.updatePeople(filteredPeople)
+                updateEmptyState()
+            }
+        }
+    }
+    
+    private fun filterPeople(query: String) {
+        filteredPeople = if (query.isBlank()) {
+            allPeople
+        } else {
+            allPeople.filter { person ->
+                person.firstName.contains(query, ignoreCase = true) ||
+                person.lastName.contains(query, ignoreCase = true) ||
+                person.fullName.contains(query, ignoreCase = true)
+            }
+        }
+        
+        adapter.updatePeople(filteredPeople)
+        updateEmptyState()
+    }
+    
+    private fun updateEmptyState() {
+        if (filteredPeople.isEmpty()) {
+            rvPeople.visibility = View.GONE
+            tvEmptyState.visibility = View.VISIBLE
+            
+            tvEmptyState.text = if (allPeople.isEmpty()) {
+                "No saved people found.\nTap + to add your first person!"
+            } else {
+                "No people match your search."
+            }
+        } else {
+            rvPeople.visibility = View.VISIBLE
+            tvEmptyState.visibility = View.GONE
+        }
+    }
+    
+    private fun showDeleteConfirmation(person: Person) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete Person")
+            .setMessage("Are you sure you want to delete ${person.fullName}? This will also remove all their match records.")
+            .setPositiveButton("Delete") { _, _ ->
+                deletePerson(person)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    private fun deletePerson(person: Person) {
+        lifecycleScope.launch {
+            try {
+                peopleRepository.deletePerson(person.id)
+                // Reload the list
+                loadPeople()
+            } catch (e: Exception) {
+                // Handle error - could show a toast or snackbar
+            }
+        }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // NEW: Don't close shared repository - parent activity manages lifecycle
+    }
+}

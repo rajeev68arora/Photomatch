@@ -45,8 +45,9 @@ class PhotoProcessingActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_REFERENCE_PHOTO_URI = "reference_photo_uri"
-        const val EXTRA_PERSON_FIRST_NAME = "person_first_name"
-        const val EXTRA_PERSON_LAST_NAME = "person_last_name"
+        const val EXTRA_PERSON_ID = "person_id"                        // NEW: Primary person identification
+        const val EXTRA_PERSON_FIRST_NAME = "person_first_name"        // Legacy: For backward compatibility
+        const val EXTRA_PERSON_LAST_NAME = "person_last_name"          // Legacy: For backward compatibility
         private const val TAG = "PhotoProcessingActivity"
         
         // Threshold constants
@@ -58,6 +59,7 @@ class PhotoProcessingActivity : AppCompatActivity() {
     private lateinit var detectedFaceAdapter: DetectedFaceAdapter
     private lateinit var binding: ActivityPhotoProcessingBinding
     
+    private var personId: Long? = null
     private var personFirstName: String = ""
     private var personLastName: String = ""
 
@@ -153,14 +155,32 @@ class PhotoProcessingActivity : AppCompatActivity() {
 
     private fun initializeProcessing() {
         val referencePhotoUri = intent.getStringExtra(EXTRA_REFERENCE_PHOTO_URI)
+        
+        // Handle both new person_id and legacy name-based approach
+        personId = if (intent.hasExtra(EXTRA_PERSON_ID)) {
+            intent.getLongExtra(EXTRA_PERSON_ID, -1L).takeIf { it != -1L }
+        } else null
+        
         personFirstName = intent.getStringExtra(EXTRA_PERSON_FIRST_NAME) ?: ""
         personLastName = intent.getStringExtra(EXTRA_PERSON_LAST_NAME) ?: ""
         
-        if (referencePhotoUri != null && personFirstName.isNotEmpty() && personLastName.isNotEmpty()) {
+        // Validation: Must have reference photo and either person_id or both names
+        val hasPersonId = personId != null
+        val hasPersonNames = personFirstName.isNotEmpty() && personLastName.isNotEmpty()
+        
+        if (referencePhotoUri != null && (hasPersonId || hasPersonNames)) {
             // Update UI to show person name
             title = "Finding $personFirstName $personLastName"
             
-            viewModel.initializeWithReference(Uri.parse(referencePhotoUri), this, personFirstName, personLastName)
+            // Pass both person_id and names to ViewModel for flexibility
+            viewModel.initializeWithReference(
+                referencePhotoUri = Uri.parse(referencePhotoUri), 
+                context = this, 
+                personId = personId,
+                firstName = personFirstName, 
+                lastName = personLastName,
+                sharedMatchRepository = null  // PhotoProcessingActivity creates its own for now
+            )
             processCurrentPhotoIfNeeded()
         } else {
             finish() // Invalid state, return to previous screen

@@ -66,6 +66,7 @@ class PhotoProcessingViewModel : ViewModel() {
     val facesNeedingConfirmation: LiveData<List<FaceDetectionResult>> = _facesNeedingConfirmation
 
     // Person information for this search session
+    private var personId: Long? = null
     private var personFirstName: String = ""
     private var personLastName: String = ""
     
@@ -74,11 +75,20 @@ class PhotoProcessingViewModel : ViewModel() {
 
     /**
      * Initialize the processing workflow with a reference photo and person information
+     * Supports both new person_id approach and legacy name-based approach
      */
-    fun initializeWithReference(referencePhotoUri: Uri, context: Context, firstName: String, lastName: String) {
+    fun initializeWithReference(
+        referencePhotoUri: Uri, 
+        context: Context, 
+        personId: Long? = null,
+        firstName: String, 
+        lastName: String,
+        sharedMatchRepository: MatchRepository? = null
+    ) {
+        this.personId = personId
         personFirstName = firstName
         personLastName = lastName
-        matchRepository = MatchRepository(context)
+        matchRepository = sharedMatchRepository ?: MatchRepository(context)
         
         viewModelScope.launch {
             try {
@@ -206,13 +216,14 @@ class PhotoProcessingViewModel : ViewModel() {
                     for (face in autoMatches) {
                         val match = Match(
                             photoUri = currentUri.toString(),
-                            personFirstName = personFirstName,
-                            personLastName = personLastName,
+                            personId = personId,                       // NEW: Use person_id foreign key
+                            personFirstName = personFirstName,         // Legacy: For backward compatibility
+                            personLastName = personLastName,           // Legacy: For backward compatibility
                             similarityScore = face.similarityToReference,
                             matchType = MatchType.AUTO_MATCH
                         )
                         repository.insertMatch(match)
-                        Log.d(TAG, "Saved auto-match to database: ${(face.similarityToReference * 100).toInt()}%")
+                        Log.d(TAG, "Saved auto-match to database: ${(face.similarityToReference * 100).toInt()}% (person_id: $personId)")
                     }
                     
                     // Note: Rejected faces are no longer stored - we only save positive matches
@@ -285,13 +296,14 @@ class PhotoProcessingViewModel : ViewModel() {
                 for (face in confirmedFaces) {
                     val match = Match(
                         photoUri = currentUri.toString(),
-                        personFirstName = personFirstName,
-                        personLastName = personLastName,
+                        personId = personId,                       // NEW: Use person_id foreign key
+                        personFirstName = personFirstName,         // Legacy: For backward compatibility
+                        personLastName = personLastName,           // Legacy: For backward compatibility
                         similarityScore = face.similarityToReference,
                         matchType = MatchType.CONFIRMED
                     )
                     repository.insertMatch(match)
-                    Log.d(TAG, "User confirmed match: ${(face.similarityToReference * 100).toInt()}%")
+                    Log.d(TAG, "User confirmed match: ${(face.similarityToReference * 100).toInt()}% (person_id: $personId)")
                 }
             }
             
@@ -311,11 +323,18 @@ class PhotoProcessingViewModel : ViewModel() {
 
     /**
      * Get summary of all confirmed matches from database
+     * Uses person_id if available, falls back to name-based query
      */
     suspend fun getMatchingSummary(): List<Uri> {
         val repository = matchRepository
         return if (repository != null) {
-            val matches = repository.getConfirmedMatchesForPerson(personFirstName, personLastName)
+            val matches = if (personId != null) {
+                // NEW: Use person_id based query (preferred)
+                repository.getConfirmedMatchesForPersonId(personId!!)
+            } else {
+                // Legacy: Use name-based query for backward compatibility
+                repository.getConfirmedMatchesForPerson(personFirstName, personLastName)
+            }
             matches.map { Uri.parse(it.photoUri) }
         } else {
             // Fallback to processing results if repository not available

@@ -33,15 +33,23 @@ class MatchRepository(context: Context) {
     private val dbHelper = DatabaseHelper(context)
     
     /**
-     * Insert a new match into the database
+     * Insert a new match into the database with proper foreign key relationship
      */
     suspend fun insertMatch(match: Match): Long = withContext(Dispatchers.IO) {
         val db = dbHelper.writableDatabase
         
         val values = ContentValues().apply {
             put(MatchContract.MatchEntry.COLUMN_PHOTO_URI, match.photoUri)
+            
+            // Primary: Use person_id foreign key if available
+            if (match.personId != null) {
+                put(MatchContract.MatchEntry.COLUMN_PERSON_ID, match.personId)
+            }
+            
+            // Legacy: Keep name fields for backward compatibility
             put(MatchContract.MatchEntry.COLUMN_PERSON_FIRST_NAME, match.personFirstName)
             put(MatchContract.MatchEntry.COLUMN_PERSON_LAST_NAME, match.personLastName)
+            
             put(MatchContract.MatchEntry.COLUMN_SIMILARITY_SCORE, match.similarityScore)
             put(MatchContract.MatchEntry.COLUMN_MATCH_TYPE, match.matchType.name)
             put(MatchContract.MatchEntry.COLUMN_TIMESTAMP, match.timestamp)
@@ -164,7 +172,82 @@ class MatchRepository(context: Context) {
     }
     
     /**
-     * Parse cursor results into Match objects
+     * NEW: Get all confirmed matches for a person by person_id (preferred method)
+     */
+    suspend fun getConfirmedMatchesForPersonId(personId: Long): List<Match> = 
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.readableDatabase
+            
+            val cursor = db.query(
+                MatchContract.MatchEntry.TABLE_NAME,
+                null, // Get all columns
+                "${MatchContract.MatchEntry.COLUMN_PERSON_ID} = ? AND ${MatchContract.MatchEntry.COLUMN_MATCH_TYPE} IN (?,?)",
+                arrayOf(personId.toString(), MatchType.AUTO_MATCH.name, MatchType.CONFIRMED.name),
+                null, null,
+                "${MatchContract.MatchEntry.COLUMN_TIMESTAMP} DESC"
+            )
+            
+            cursor.use { parseMatches(it) }
+        }
+    
+    /**
+     * NEW: Get all matches for a person by person_id (preferred method)  
+     */
+    suspend fun getAllMatchesForPersonId(personId: Long): List<Match> = 
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.readableDatabase
+            
+            val cursor = db.query(
+                MatchContract.MatchEntry.TABLE_NAME,
+                null, // Get all columns
+                "${MatchContract.MatchEntry.COLUMN_PERSON_ID} = ?",
+                arrayOf(personId.toString()),
+                null, null,
+                "${MatchContract.MatchEntry.COLUMN_TIMESTAMP} DESC"
+            )
+            
+            cursor.use { parseMatches(it) }
+        }
+    
+    /**
+     * NEW: Get confirmed match count for a person by person_id (preferred method)
+     */
+    suspend fun getConfirmedMatchCountForPersonId(personId: Long): Int =
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.readableDatabase
+            
+            val cursor = db.query(
+                MatchContract.MatchEntry.TABLE_NAME,
+                arrayOf("COUNT(*)"),
+                "${MatchContract.MatchEntry.COLUMN_PERSON_ID} = ? AND ${MatchContract.MatchEntry.COLUMN_MATCH_TYPE} IN (?,?)",
+                arrayOf(personId.toString(), MatchType.AUTO_MATCH.name, MatchType.CONFIRMED.name),
+                null, null, null
+            )
+            
+            cursor.use {
+                if (it.moveToFirst()) {
+                    it.getInt(0)
+                } else {
+                    0
+                }
+            }
+        }
+    
+    /**
+     * NEW: Delete all matches for a person by person_id (preferred method)
+     */
+    suspend fun deleteMatchesForPersonId(personId: Long): Int = 
+        withContext(Dispatchers.IO) {
+            val db = dbHelper.writableDatabase
+            db.delete(
+                MatchContract.MatchEntry.TABLE_NAME, 
+                "${MatchContract.MatchEntry.COLUMN_PERSON_ID} = ?", 
+                arrayOf(personId.toString())
+            )
+        }
+
+    /**
+     * Parse cursor results into Match objects (updated for person_id support)
      */
     private fun parseMatches(cursor: Cursor): List<Match> {
         val matches = mutableListOf<Match>()
@@ -173,6 +256,13 @@ class MatchRepository(context: Context) {
             while (moveToNext()) {
                 val id = getLong(getColumnIndexOrThrow(BaseColumns._ID))
                 val photoUri = getString(getColumnIndexOrThrow(MatchContract.MatchEntry.COLUMN_PHOTO_URI))
+                
+                // Handle both new person_id and legacy name fields
+                val personIdColumnIndex = getColumnIndex(MatchContract.MatchEntry.COLUMN_PERSON_ID)
+                val personId = if (personIdColumnIndex >= 0 && !isNull(personIdColumnIndex)) {
+                    getLong(personIdColumnIndex)
+                } else null
+                
                 val firstName = getString(getColumnIndexOrThrow(MatchContract.MatchEntry.COLUMN_PERSON_FIRST_NAME))
                 val lastName = getString(getColumnIndexOrThrow(MatchContract.MatchEntry.COLUMN_PERSON_LAST_NAME))
                 val similarity = getFloat(getColumnIndexOrThrow(MatchContract.MatchEntry.COLUMN_SIMILARITY_SCORE))
@@ -192,6 +282,7 @@ class MatchRepository(context: Context) {
                     Match(
                         id = id,
                         photoUri = photoUri,
+                        personId = personId,
                         personFirstName = firstName,
                         personLastName = lastName,
                         similarityScore = similarity,

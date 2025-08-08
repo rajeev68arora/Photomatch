@@ -1,0 +1,50 @@
+ git commit -m "Implement persistent people storage with intelligent duplicate detection                                               │
+│                                                                                                                                         │
+│   MAJOR FEATURES:                                                                                                                       │
+│   - Persistent people database with face embeddings and bitmaps                                                                         │
+│   - Smart duplicate detection using 85%+ similarity threshold                                                                           │
+│   - Three photo selection modes: Take Photo, Upload Photo, Select Saved Person                                                          │
+│   - Person management with search, deletion, and usage tracking                                                                         │
+│   - Material Design UI with grid layouts and search functionality                                                                       │
+│                                                                                                                                         │
+│   TECHNICAL IMPLEMENTATION:                                                                                                             │
+│   - Person data class with face embeddings, bitmaps, and metadata                                                                       │
+│   - PeopleRepository with async CRUD operations and similarity comparison                                                               │
+│   - SerializationUtils for FloatArray/Bitmap to/from BLOB conversion                                                                    │
+│   - FaceMatchingService for duplicate detection and similarity analysis                                                                 │
+│   - Database migration V1→V2 with foreign key relationships                                                                             │
+│                                                                                                                                         │
+│   USER INTERFACE:                                                                                                                       │
+│   - PersonSelectionDialog with searchable grid of saved people                                                                          │
+│   - DuplicateFaceDialog for resolving potential duplicates                                                                              │
+│   - Enhanced MainActivity with third selection option                                                                                   │
+│   - Recently used indicators and usage-based sorting                                                                                    │
+│   - Long-press to delete with confirmation dialogs                                                                                      │
+│                                                                                                                                         │
+│   DATABASE DESIGN:                                                                                                                      │
+│   - people table: face_embedding BLOB, face_bitmap BLOB, usage tracking                                                                 │
+│   - Foreign key relationship: matches.person_id → people._id                                                                            │
+│   - Backward compatibility with existing name-based matches                                                                             │
+│   - Optimized indexes for name search and usage patterns                                                                                │
+│                                                                                                                                         │
+│   DUPLICATE PREVENTION:                                                                                                                 │
+│   - Cosine similarity comparison of face embeddings                                                                                     │
+│   - High confidence (95%+) suggests using existing person                                                                               │
+│   - Medium confidence (85-95%) shows confirmation dialog                                                                                │
+│   - User choice: Use Existing, Add New, or Cancel                                                                                       │
+│                                                                                                                                         │
+│   PERFORMANCE OPTIMIZATIONS:                                                                                                            │
+│   - Compressed JPEG face thumbnails for UI display                                                                                      │
+│   - Lazy loading and efficient bitmap handling                                                                                          │
+│   - Indexed database queries for fast lookups                                                                                           │
+│   - Background thread processing with coroutines                                                                                        │
+│                                                                                                                                         │
+│   🤖 Generated with [Claude Code](https://claude.ai/code)                                                                               │
+│                                                                                                                                         │
+│   Co-Authored-By: Claude <noreply@anthropic.com>"                                                                                       │
+│   Commit persistent people storage implementation                                                                                       │
+│                                                                                                                                         │
+│ Do you want to proceed?                                                                                                                 │
+│ ❯ 1. Yes                                                                                                                                │
+│   2. No, and tell Claude what to do differently (esc)                                                                                   │
+╰────────────────────────────────────────────────────────────────
