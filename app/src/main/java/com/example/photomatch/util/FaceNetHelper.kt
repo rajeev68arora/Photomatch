@@ -5,8 +5,10 @@ import android.util.Log
 import org.tensorflow.lite.Interpreter
 import android.graphics.*
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.example.photomatch.data.FaceDetectionResult
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,10 +19,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
 
-// The FaceNetHelper and PhotoViewModel code you've shared focuses on generating
-// embeddings and finding matches based on a given reference embedding, but it does not
-// include logic for persistently storing or managing a database of known faces
-// and their embeddings.
+// FaceNetHelper: Enhanced for full resolution processing with step-by-step face detection
 object FaceNetHelper {
     private const val MODEL_FILE = "facenet.tflite"
     private const val IMAGE_SIZE = 160
@@ -62,25 +61,19 @@ object FaceNetHelper {
 
     suspend fun getFaceEmbeddings(originalBitmap: Bitmap, context: Context): FloatArray {
         try {
-            // Scale down the image if it's too large
-            val scaledBitmap = scaleDownBitmap(originalBitmap)
-            Log.d("FaceNetHelper", "Scaled bitmap size: ${scaledBitmap.width}x${scaledBitmap.height}")
+            // Use full resolution image for better face detection
+            Log.d("FaceNetHelper", "Processing full resolution image: ${originalBitmap.width}x${originalBitmap.height}")
 
             // Initialize interpreter
             initializeInterpreter(context)
 
-            // Detect face
-            val face = detectFace(scaledBitmap) ?: throw IllegalStateException("No face detected")
+            // Detect face on full resolution image
+            val face = detectFace(originalBitmap) ?: throw IllegalStateException("No face detected")
             Log.d("FaceNetHelper", "Face detected with bounds: ${face.boundingBox}")
 
             // Process face
-            val faceBitmap = cropFace(scaledBitmap, face.boundingBox)
+            val faceBitmap = cropFace(originalBitmap, face.boundingBox)
             val byteBuffer = bitmapToByteBuffer(faceBitmap) // Input for model
-
-            // Clean up scaled bitmap if it's different from original
-            if (scaledBitmap != originalBitmap) {
-                scaledBitmap.recycle()
-            }
 
             // Generate embedding
             val outputArray = Array(1) { FloatArray(EMBEDDING_SIZE) }
@@ -97,6 +90,68 @@ object FaceNetHelper {
 
         } catch (e: Exception) {
             Log.e("FaceNetHelper", "Error during inference: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * Enhanced method that returns detailed face detection results with embeddings
+     */
+    suspend fun getFaceDetectionResults(originalBitmap: Bitmap, context: Context): List<FaceDetectionResult> {
+        try {
+            Log.d("FaceNetHelper", "Processing full resolution image: ${originalBitmap.width}x${originalBitmap.height}")
+            
+            // Initialize interpreter
+            initializeInterpreter(context)
+            
+            // Detect all faces in the image
+            val faces = detectAllFaces(originalBitmap)
+            
+            if (faces.isEmpty()) {
+                Log.w("FaceNetHelper", "No faces detected in image")
+                return emptyList()
+            }
+            
+            val results = mutableListOf<FaceDetectionResult>()
+            
+            for (face in faces) {
+                try {
+                    // Process each face
+                    val faceBitmap = cropFace(originalBitmap, face.boundingBox)
+                    val byteBuffer = bitmapToByteBuffer(faceBitmap)
+                    
+                    // Generate embedding
+                    val outputArray = Array(1) { FloatArray(EMBEDDING_SIZE) }
+                    interpreter?.run(byteBuffer, outputArray)
+                    
+                    // Normalize embedding
+                    val embedding = outputArray[0]
+                    val norm = sqrt(embedding.map { it * it }.sum())
+                    for (i in embedding.indices) {
+                        embedding[i] /= norm
+                    }
+                    
+                    results.add(
+                        FaceDetectionResult(
+                            boundingBox = face.boundingBox,
+                            embedding = embedding,
+                            croppedFaceBitmap = faceBitmap,
+                            confidence = 1.0f // ML Kit doesn't provide confidence score directly
+                        )
+                    )
+                    
+                    Log.d("FaceNetHelper", "Processed face with bounds: ${face.boundingBox}")
+                    
+                } catch (e: Exception) {
+                    Log.e("FaceNetHelper", "Error processing individual face: ${e.message}")
+                    continue
+                }
+            }
+            
+            return results
+            
+        } catch (e: Exception) {
+            Log.e("FaceNetHelper", "Error during face detection: ${e.message}")
             throw e
         }
     }
@@ -120,7 +175,14 @@ object FaceNetHelper {
         val newWidth = (originalWidth * ratio).toInt()
         val newHeight = (originalHeight * ratio).toInt()
 
-        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        
+        // Recycle original bitmap if it was scaled down to prevent memory leaks
+        if (scaledBitmap != bitmap) {
+            bitmap.recycle()
+        }
+        
+        return scaledBitmap
     }
 
     private suspend fun detectFace(bitmap: Bitmap) = suspendCoroutine { continuation ->
@@ -144,6 +206,22 @@ object FaceNetHelper {
             }
     }
 
+    /**
+     * Detects all faces in the given bitmap
+     */
+    private suspend fun detectAllFaces(bitmap: Bitmap): List<Face> = suspendCoroutine { continuation ->
+        val image = InputImage.fromBitmap(bitmap, 0)
+
+        faceDetector.process(image)
+            .addOnSuccessListener { faces ->
+                continuation.resume(faces)
+            }
+            .addOnFailureListener { e ->
+                Log.e("FaceNetHelper", "Face detection failed: ${e.message}")
+                continuation.resume(emptyList())
+            }
+    }
+
     private fun cropFace(bitmap: Bitmap, boundingBox: Rect): Bitmap {
         val padding = (max(boundingBox.width(), boundingBox.height()) * 0.2f).toInt()
 
@@ -160,11 +238,14 @@ object FaceNetHelper {
             bottom - top
         )
 
-        return Bitmap.createScaledBitmap(croppedBitmap, IMAGE_SIZE, IMAGE_SIZE, true).also {
-            if (it != croppedBitmap) {
-                croppedBitmap.recycle()
-            }
+        val scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, IMAGE_SIZE, IMAGE_SIZE, true)
+        
+        // Recycle the intermediate cropped bitmap to prevent memory leaks
+        if (scaledBitmap != croppedBitmap) {
+            croppedBitmap.recycle()
         }
+        
+        return scaledBitmap
     }
 
     private fun preprocessImage(bitmap: Bitmap): Array<Array<Array<FloatArray>>> {
@@ -208,4 +289,25 @@ object FaceNetHelper {
     }
 
     private fun sqrt(value: Float): Float = kotlin.math.sqrt(value)
+
+    /**
+     * Calculate cosine similarity between two embeddings
+     */
+    fun calculateSimilarity(embedding1: FloatArray, embedding2: FloatArray): Float {
+        var dotProduct = 0f
+        var norm1 = 0f
+        var norm2 = 0f
+
+        for (i in embedding1.indices) {
+            dotProduct += embedding1[i] * embedding2[i]
+            norm1 += embedding1[i] * embedding1[i]
+            norm2 += embedding2[i] * embedding2[i]
+        }
+
+        return if (norm1 == 0f || norm2 == 0f) {
+            0f
+        } else {
+            dotProduct / (sqrt(norm1) * sqrt(norm2))
+        }
+    }
 }
