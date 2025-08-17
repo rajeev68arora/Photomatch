@@ -89,12 +89,12 @@ object MatchContract {
             ${BaseColumns._ID} INTEGER PRIMARY KEY AUTOINCREMENT,
             ${MatchEntry.COLUMN_PHOTO_URI} TEXT NOT NULL,
             ${MatchEntry.COLUMN_PERSON_ID} INTEGER,
-            ${MatchEntry.COLUMN_PERSON_FIRST_NAME} TEXT NOT NULL,
-            ${MatchEntry.COLUMN_PERSON_LAST_NAME} TEXT NOT NULL,
+            ${MatchEntry.COLUMN_PERSON_FIRST_NAME} TEXT,
+            ${MatchEntry.COLUMN_PERSON_LAST_NAME} TEXT,
             ${MatchEntry.COLUMN_SIMILARITY_SCORE} REAL NOT NULL,
             ${MatchEntry.COLUMN_MATCH_TYPE} TEXT NOT NULL,
             ${MatchEntry.COLUMN_TIMESTAMP} INTEGER NOT NULL,
-            FOREIGN KEY(${MatchEntry.COLUMN_PERSON_ID}) REFERENCES ${PeopleEntry.TABLE_NAME}(${BaseColumns._ID})
+            FOREIGN KEY(${MatchEntry.COLUMN_PERSON_ID}) REFERENCES ${PeopleEntry.TABLE_NAME}(${BaseColumns._ID}) ON DELETE CASCADE
         )
     """
     
@@ -114,6 +114,13 @@ object MatchContract {
     const val SQL_CREATE_PEOPLE_USAGE_INDEX = """
         CREATE INDEX idx_people_usage ON ${PeopleEntry.TABLE_NAME}(
             ${PeopleEntry.COLUMN_LAST_USED_TIMESTAMP} DESC
+        )
+    """
+    
+    // Index for faster person_id lookups in matches table
+    const val SQL_CREATE_MATCHES_PERSON_ID_INDEX = """
+        CREATE INDEX idx_matches_person_id ON ${MatchEntry.TABLE_NAME}(
+            ${MatchEntry.COLUMN_PERSON_ID}
         )
     """
 }

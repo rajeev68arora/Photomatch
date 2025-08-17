@@ -1,89 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    PERSON SELECTION DIALOG LAYOUT
-    
-    PURPOSE:
-    - Display all saved people in searchable grid format
-    - Enable person selection for face matching
-    - Provide add new person option
-    
-    LAYOUT STRUCTURE:
-    - Search field at top for filtering
-    - Grid RecyclerView showing people with thumbnails
-    - Empty state message when no people found
-    - Floating action button for adding new person
-    
-    DESIGN PRINCIPLES:
-    - Material Design 3 components
-    - Grid layout for efficient space usage
-    - Search functionality for large people databases
-    - Clear empty state messaging
--->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="400dp">
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <LinearLayout
+    <EditText
+        android:id="@+id/etSearch"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="wrap_content"
+        android:hint="Search people..."
+        android:inputType="text"
+        android:maxLines="1"
+        android:layout_marginBottom="16dp" />
 
-        <!-- Search Field -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:startIconDrawable="@android:drawable/ic_menu_search"
-            app:endIconMode="clear_text"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvPeople"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="400dp" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etSearch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Search people..."
-                android:inputType="textPersonName"
-                android:maxLines="1" />
+    <TextView
+        android:id="@+id/tvEmptyState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No people found"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone" />
 
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- People Grid -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvPeople"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:paddingBottom="8dp" />
-
-        <!-- Empty State -->
-        <TextView
-            android:id="@+id/tvEmptyState"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:text="No saved people found.\nTap + to add your first person!"
-            android:textAlignment="center"
-            android:textSize="16sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:gravity="center"
-            android:visibility="gone"
-            android:drawableTop="@android:drawable/ic_menu_myplaces"
-            android:drawablePadding="16dp"
-            android:drawableTint="?attr/colorOnSurfaceVariant" />
-
-    </LinearLayout>
-
-    <!-- Add New Person FAB -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAddNew"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:contentDescription="Add new person"
-        app:srcCompat="@android:drawable/ic_input_add" />
+        android:layout_gravity="end|bottom"
+        android:layout_marginTop="16dp"
+        android:src="@android:drawable/ic_input_add"
+        android:contentDescription="Add new person" />
 
-</FrameLayout>
+</LinearLayout>

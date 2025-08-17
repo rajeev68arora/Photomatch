@@ -1,88 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    PERSON SELECTION ITEM LAYOUT FOR GRID RECYCLERVIEW
-    
-    PURPOSE:
-    - Display individual person in grid format
-    - Show face thumbnail, name, and last used date
-    - Provide visual feedback for selection
-    - Indicate recently used people
-    
-    LAYOUT STRUCTURE:
-    - Large face thumbnail at top
-    - Person name below thumbnail
-    - Last used date at bottom
-    - Recent usage indicator (colored dot)
-    - Card-based design with elevation
-    
-    INTERACTION:
-    - Single tap to select person
-    - Long press to delete person
-    - Visual feedback on touch
--->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:cardCornerRadius="12dp"
     app:cardElevation="2dp"
-    android:foreground="?attr/selectableItemBackground">
+    app:cardCornerRadius="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp"
-        android:gravity="center_horizontal">
+        android:padding="8dp">
 
-        <!-- Recent Usage Indicator -->
-        <View
-            android:id="@+id/viewRecentIndicator"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="@drawable/face_border"
-            android:backgroundTint="?attr/colorPrimary"
-            android:visibility="gone" />
-
-        <!-- Face Thumbnail -->
         <ImageView
             android:id="@+id/ivFace"
             android:layout_width="80dp"
             android:layout_height="80dp"
-            android:layout_marginBottom="8dp"
+            android:layout_gravity="center"
             android:scaleType="centerCrop"
             android:background="@drawable/face_border"
-            android:contentDescription="Person's face" />
+            android:layout_marginBottom="8dp" />
 
-        <!-- Person Name -->
         <TextView
             android:id="@+id/tvName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="John Doe"
-            android:textAlignment="center"
+            android:text="Person Name"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="?attr/colorOnSurface"
+            android:gravity="center"
             android:maxLines="2"
             android:ellipsize="end"
             android:layout_marginBottom="4dp" />
 
-        <!-- Last Used Date -->
         <TextView
             android:id="@+id/tvLastUsed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Last used: Mar 15, 2024"
-            android:textAlignment="center"
-            android:textSize="10sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:text="Last used: Jan 1, 2024"
+            android:textSize="12sp"
+            android:gravity="center"
             android:maxLines="1"
             android:ellipsize="end" />
+
+        <View
+            android:id="@+id/viewRecentIndicator"
+            android:layout_width="4dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center"
+            android:layout_marginTop="4dp"
+            android:background="@android:color/holo_green_dark"
+            android:visibility="gone" />
 
     </LinearLayout>
 

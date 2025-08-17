@@ -39,6 +39,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(
         // Create indexes for optimal performance
         db.execSQL(MatchContract.SQL_CREATE_PEOPLE_NAME_INDEX)
         db.execSQL(MatchContract.SQL_CREATE_PEOPLE_USAGE_INDEX)
+        db.execSQL(MatchContract.SQL_CREATE_MATCHES_PERSON_ID_INDEX)
     }
     
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -82,6 +83,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(
         
         // Step 3: Enable foreign key constraints for new data integrity
         db.execSQL("PRAGMA foreign_keys = ON")
+        
+        // Step 4: Create index for person_id lookups
+        db.execSQL(MatchContract.SQL_CREATE_MATCHES_PERSON_ID_INDEX)
     }
     
     companion object {

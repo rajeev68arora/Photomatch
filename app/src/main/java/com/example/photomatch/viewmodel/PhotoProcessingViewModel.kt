@@ -24,6 +24,9 @@ import kotlin.math.max
  * ViewModel for individual photo processing workflow
  */
 class PhotoProcessingViewModel : ViewModel() {
+    
+    // Track active coroutines for proper cancellation
+    private val activeJobs = mutableListOf<kotlinx.coroutines.Job>()
 
     companion object {
         private const val TAG = "PhotoProcessingVM"
@@ -90,7 +93,7 @@ class PhotoProcessingViewModel : ViewModel() {
         personLastName = lastName
         matchRepository = sharedMatchRepository ?: MatchRepository(context)
         
-        viewModelScope.launch {
+        val job = viewModelScope.launch {
             try {
                 Log.d(TAG, "Initializing with reference photo")
                 
@@ -128,6 +131,7 @@ class PhotoProcessingViewModel : ViewModel() {
                 Log.e(TAG, "Error initializing processing: ${e.message}")
             }
         }
+        activeJobs.add(job)
     }
 
     /**
@@ -136,7 +140,7 @@ class PhotoProcessingViewModel : ViewModel() {
     fun processCurrentPhoto(context: Context) {
         if (currentPhotoIndex >= allPhotos.size) return
         
-        viewModelScope.launch {
+        val job = viewModelScope.launch {
             try {
                 val currentUri = allPhotos[currentPhotoIndex]
                 Log.d(TAG, "Processing photo $currentPhotoIndex: $currentUri")
@@ -258,6 +262,7 @@ class PhotoProcessingViewModel : ViewModel() {
                 updateProcessingResult(ProcessingStatus.ERROR)
             }
         }
+        activeJobs.add(job)
     }
 
     /**
@@ -420,4 +425,11 @@ class PhotoProcessingViewModel : ViewModel() {
         val totalCount: Int,
         val percentComplete: Int
     )
+    
+    override fun onCleared() {
+        super.onCleared()
+        // Cancel all active coroutines when ViewModel is cleared
+        activeJobs.forEach { it.cancel() }
+        activeJobs.clear()
+    }
 }

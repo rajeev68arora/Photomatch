@@ -1,102 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    DUPLICATE FACE CONFIRMATION DIALOG LAYOUT
-    
-    PURPOSE:
-    - Show potential duplicate faces before adding new person
-    - Allow user to choose between using existing or adding new
-    - Display similarity percentages for informed decisions
-    
-    LAYOUT STRUCTURE:
-    - Title and descriptive message at top
-    - Horizontal RecyclerView showing similar face thumbnails
-    - Action buttons: Use Existing, Add New, Cancel
-    
-    DESIGN PRINCIPLES:
-    - Material Design 3 components
-    - Clear visual hierarchy
-    - Accessible touch targets
-    - Informative without being overwhelming
--->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="16dp">
 
-    <!-- Dialog Title -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Similar Faces Found"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:textStyle="bold"
-        android:textColor="?attr/colorOnSurface"
         android:layout_marginBottom="8dp" />
 
-    <!-- Descriptive Message -->
     <TextView
         android:id="@+id/tvMessage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="We found similar faces in your database. Please confirm if this is a new person."
-        android:textSize="14sp"
-        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="We found similar faces in your database. Please confirm if this is a new person or if you want to use an existing one."
         android:layout_marginBottom="16dp" />
 
-    <!-- Similar Faces Section -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Similar faces:"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:textColor="?attr/colorOnSurface"
-        android:layout_marginBottom="8dp" />
-
-    <!-- Horizontal RecyclerView for Similar Faces -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvSimilarFaces"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginBottom="24dp"
-        android:clipToPadding="false"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp" />
+        android:layout_height="wrap_content"
+        android:maxHeight="200dp"
+        android:layout_marginBottom="16dp" />
 
-    <!-- Action Buttons -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="end">
 
-        <!-- Cancel Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCancel"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Cancel"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="8dp"
+            style="@style/Widget.Material3.Button.TextButton" />
 
-        <!-- Add New Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddNew"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Add as New Person"
-            android:layout_marginEnd="8dp" />
+            android:text="Add as New"
+            android:layout_marginEnd="8dp"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
 
-        <!-- Use Existing Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnUseExisting"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Use Existing" />
+            android:text="Use Existing"
+            style="@style/Widget.Material3.Button" />
 
     </LinearLayout>
 

@@ -45,22 +45,43 @@ object FaceNetHelper {
 
     private fun initializeInterpreter(context: Context) {
         if (interpreter == null) {
-            val options = Interpreter.Options().apply {
-                numThreads = 4
-                useXNNPACK = true  // Enable hardware acceleration if available
+            try {
+                val options = Interpreter.Options().apply {
+                    numThreads = 4
+                    useXNNPACK = true  // Enable hardware acceleration if available
+                }
+                interpreter = Interpreter(loadModelFile(context), options)
+                Log.d("FaceNetHelper", "TensorFlow Lite interpreter initialized successfully")
+            } catch (e: Exception) {
+                Log.e("FaceNetHelper", "Failed to initialize TensorFlow Lite interpreter: ${e.message}")
+                throw IllegalStateException("Failed to load face recognition model", e)
             }
-            interpreter = Interpreter(loadModelFile(context), options)
         }
     }
 
     private fun loadModelFile(context: Context): MappedByteBuffer {
         val modelPath = MODEL_FILE
-        val fileDescriptor = context.assets.openFd(modelPath)
-        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
-        val fileChannel = inputStream.channel
-        val startOffset = fileDescriptor.startOffset
-        val declaredLength = fileDescriptor.declaredLength
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+        try {
+            val fileDescriptor = context.assets.openFd(modelPath)
+            val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+            val fileChannel = inputStream.channel
+            val startOffset = fileDescriptor.startOffset
+            val declaredLength = fileDescriptor.declaredLength
+            
+            val mappedBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+            
+            // Close resources
+            fileChannel.close()
+            inputStream.close()
+            fileDescriptor.close()
+            
+            Log.d("FaceNetHelper", "Model file loaded successfully: $modelPath")
+            return mappedBuffer
+            
+        } catch (e: Exception) {
+            Log.e("FaceNetHelper", "Failed to load model file: $modelPath", e)
+            throw IllegalStateException("Face recognition model not found in assets", e)
+        }
     }
 
     suspend fun getFaceEmbeddings(originalBitmap: Bitmap, context: Context): FloatArray {
@@ -180,7 +201,14 @@ object FaceNetHelper {
         val newWidth = (originalWidth * ratio).toInt()
         val newHeight = (originalHeight * ratio).toInt()
 
-        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        
+        // Recycle original bitmap if it was scaled down to prevent memory leaks
+        if (scaledBitmap != bitmap) {
+            bitmap.recycle()
+        }
+        
+        return scaledBitmap
     }
 
     private suspend fun detectFace(bitmap: Bitmap) = suspendCoroutine { continuation ->
@@ -236,11 +264,14 @@ object FaceNetHelper {
             bottom - top
         )
 
-        return Bitmap.createScaledBitmap(croppedBitmap, IMAGE_SIZE, IMAGE_SIZE, true).also {
-            if (it != croppedBitmap) {
-                croppedBitmap.recycle()
-            }
+        val scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, IMAGE_SIZE, IMAGE_SIZE, true)
+        
+        // Recycle the intermediate cropped bitmap to prevent memory leaks
+        if (scaledBitmap != croppedBitmap) {
+            croppedBitmap.recycle()
         }
+        
+        return scaledBitmap
     }
 
     private fun preprocessImage(bitmap: Bitmap): Array<Array<Array<FloatArray>>> {

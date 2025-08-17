@@ -1,106 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 
-    INTEGRATED FACE ITEM LAYOUT WITH CONFIRMATION CONTROLS
-    
-    EVOLUTION:
-    1. Initially: Simple face display without confirmation controls
-    2. Added separate confirmation UI in dedicated section
-    3. User request: "check box has to appear diretly under the faces detected and not as a separate frame"
-    4. User request: "put two tick boxes, yes and no, toggle so that only one can be ticked"
-    5. Current: Integrated Yes/No toggle buttons directly under face display
-    
-    LAYOUT STRUCTURE:
-    - Face image at top (80dp x 80dp)
-    - Similarity percentage below image
-    - Match status text (AUTO MATCH/AUTO REJECT/CONFIRM?/USER CONFIRMED/USER REJECTED)
-    - Yes/No toggle buttons (visible only for PENDING state)
-    
-    TOGGLE BEHAVIOR:
-    - Only one button can be selected at a time
-    - Yes button: Confirms match, saves to database
-    - No button: Rejects match, does not save to database
--->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="120dp"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="150dp"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp">
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:gravity="center">
 
-    <LinearLayout
+    <ImageView
+        android:id="@+id/ivDetectedFace"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/face_border"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvSimilarityScore"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp">
+        android:text="85%"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="4dp" />
 
-        <ImageView
-            android:id="@+id/ivDetectedFace"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_gravity="center"
-            android:layout_marginBottom="4dp"
-            android:scaleType="centerCrop"
-            android:background="@color/design_default_color_surface"
-            android:contentDescription="Detected face" />
+    <TextView
+        android:id="@+id/tvMatchStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="AUTO MATCH"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
 
-        <TextView
-            android:id="@+id/tvSimilarityScore"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="85%"
-            android:textAlignment="center"
+    <LinearLayout
+        android:id="@+id/llConfirmationButtons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnYes"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="Yes"
             android:textSize="12sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/holo_blue_dark" />
+            android:layout_marginEnd="4dp"
+            style="@style/Widget.Material3.Button" />
 
-        <TextView
-            android:id="@+id/tvMatchStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="MATCH"
-            android:textAlignment="center"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/holo_orange_dark" />
-
-        <!-- INTEGRATED CONFIRMATION BUTTONS (replaces separate confirmation UI) -->
-        <!-- Visible only for PENDING state (40-60% similarity) -->
-        <!-- Toggle behavior: only one button can be active at a time -->
-        <LinearLayout
-            android:id="@+id/llConfirmationButtons"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="4dp"
-            android:visibility="gone">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnYes"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:text="Yes"
-                android:textSize="10sp"
-                android:layout_marginEnd="2dp"
-                android:backgroundTint="@android:color/holo_blue_light"
-                android:textColor="@android:color/white" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnNo"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:text="No"
-                android:textSize="10sp"
-                android:layout_marginStart="2dp"
-                android:backgroundTint="@android:color/darker_gray"
-                android:textColor="@android:color/white" />
-
-        </LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNo"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="No"
+            android:textSize="12sp"
+            android:layout_marginStart="4dp"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
 
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+</LinearLayout>

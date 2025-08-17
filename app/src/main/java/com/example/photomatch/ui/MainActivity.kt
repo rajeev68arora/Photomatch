@@ -662,11 +662,15 @@ class MainActivity : AppCompatActivity(), PersonNameDialog.PersonNameListener, P
     override fun onDestroy() {
         super.onDestroy()
         // Close shared repositories
-        if (::peopleRepository.isInitialized) {
-            peopleRepository.close()
-        }
-        if (::matchRepository.isInitialized) {
-            matchRepository.close()
+        try {
+            if (::peopleRepository.isInitialized) {
+                peopleRepository.close()
+            }
+            if (::matchRepository.isInitialized) {
+                matchRepository.close()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing repositories: ${e.message}")
         }
     }
 
